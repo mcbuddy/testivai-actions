@@ -1,0 +1,77 @@
+name: TestivAI Visual Regression Approval
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  process-approval:
+    runs-on: ubuntu-latest
+    # Only run on PR comments that contain the approval commands
+    if: |
+      github.event.issue.pull_request &&
+      (contains(github.event.comment.body, '/approve-visuals') || 
+       contains(github.event.comment.body, '/reject-visuals'))
+    
+    permissions:
+      contents: write  # Needed to push changes back to the branch
+      pull-requests: write  # Needed to comment on PRs
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      
+      - name: Process visual approval/rejection
+        uses: testivai/visual-approval-action@v1
+        id: visual-approval
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Optional custom paths if needed
+          # approvals-path: '.testivai/visual-regression/report/approvals.json'
+          # report-path: '.testivai/visual-regression/report/report.json'
+          # diff-directory: '.testivai/visual-regression/report/diff'
+          # commit-message: 'chore: update visual regression baselines [skip ci]'
+      
+      - name: Comment on PR with results
+        if: always()
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const result = ${{ steps.visual-approval.outputs.result }};
+            const approvedFiles = ${{ steps.visual-approval.outputs.approved-files || '[]' }};
+            const rejectedFiles = ${{ steps.visual-approval.outputs.rejected-files || '[]' }};
+            
+            let message = '';
+            
+            if (result === 'success') {
+              message = '✅ Visual regression changes processed successfully!\n\n';
+              
+              if (approvedFiles.length > 0) {
+                message += '**Approved files:**\n';
+                approvedFiles.forEach(file => {
+                  message += `- ${file}\n`;
+                });
+                message += '\n';
+              }
+              
+              if (rejectedFiles.length > 0) {
+                message += '**Rejected files:**\n';
+                rejectedFiles.forEach(file => {
+                  message += `- ${file}\n`;
+                });
+                message += '\n';
+              }
+            } else {
+              message = '❌ Failed to process visual regression changes. Please check the action logs for details.';
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: message
+            });
