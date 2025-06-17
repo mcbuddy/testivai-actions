@@ -55,6 +55,9 @@ Our immediate focus is on finalizing the implementation and preparing for distri
    - Set up GitHub issue and PR templates for community contributions
    - Created community guidelines (CONTRIBUTING.md, CODE_OF_CONDUCT.md)
    - Created GitHub release script to automate release creation
+   - Created test script for real repository testing
+   - Created usage monitoring script for post-release analytics
+   - Created maintenance script for ongoing maintenance tasks
 
 ## Next Steps
 
@@ -63,9 +66,12 @@ Our immediate focus is on finalizing the implementation and preparing for distri
    - Create GitHub release using the release script (`node scripts/create-github-release.js v1.0.0 <token>`)
    - Publish to GitHub Marketplace
    - Announce the release
+   - Monitor usage with the monitoring script (`node scripts/monitor-usage.js <token> [days]`)
+   - Maintain the action with the maintenance script (`./scripts/maintenance.sh [command]`)
 
 2. **Integration Testing in Real Environment**:
    - Follow the integration testing guide
+   - Use the test script (`./scripts/test-action.sh`) to set up a test environment
    - Test the action in a real GitHub repository
    - Verify functionality with actual PR comments
    - Gather feedback from users
