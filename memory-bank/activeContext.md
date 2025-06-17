@@ -62,7 +62,7 @@ Our immediate focus is on finalizing the implementation and preparing for distri
 ## Next Steps
 
 1. **Release Execution**:
-   - Create release tag using the release script (`./scripts/create-release.sh v1.0.0`)
+   - ✅ Create release tag using the release script (`./scripts/create-release.sh v1.0.0`)
    - Create GitHub release using the release script (`node scripts/create-github-release.js v1.0.0 <token>`)
    - Publish to GitHub Marketplace
    - Announce the release
