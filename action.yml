@@ -27,6 +27,11 @@ inputs:
     description: 'Custom commit message for approved changes'
     required: false
     default: 'chore: update visual regression baselines [skip ci]'
+  
+  post-report-comment:
+    description: 'Whether to post a report comment to the PR'
+    required: false
+    default: 'true'
 
 outputs:
   approved-files:

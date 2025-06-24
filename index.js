@@ -4,6 +4,7 @@ const parser = require('./src/parser');
 const approvals = require('./src/approvals');
 const git = require('./src/git');
 const testivai = require('./src/testivai');
+const reporter = require('./src/reporter');
 
 /**
  * Main function to process visual regression approvals/rejections
@@ -16,6 +17,7 @@ async function run() {
     const reportPath = core.getInput('report-path');
     const diffDirectory = core.getInput('diff-directory');
     const commitMessage = core.getInput('commit-message');
+    const postReportComment = core.getInput('post-report-comment') === 'true';
 
     // Initialize GitHub client
     const octokit = github.getOctokit(token);
@@ -71,6 +73,11 @@ async function run() {
     const committerEmail = `${payload.comment.user.login}@users.noreply.github.com`;
     
     await git.commitAndPush(commitMessage, committerName, committerEmail);
+    
+    // Post report comment if enabled
+    if (postReportComment) {
+      await reporter.postReportComment(octokit, github.context, reportPath, result);
+    }
     
     core.setOutput('result', 'success');
     core.info('Visual regression changes processed successfully');

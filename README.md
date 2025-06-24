@@ -33,6 +33,7 @@ This GitHub Action streamlines the workflow by:
 - Automatic updating of baseline images
 - Detailed metadata tracking for audit purposes
 - Seamless integration with TestivAI's visual regression testing
+- Automatic posting of visual regression reports to PR comments
 
 ## Usage
 
@@ -164,6 +165,7 @@ After submitting a comment with an approval or rejection command:
 | `report-path` | Path to the TestivAI report.json file | No | `.testivai/visual-regression/report/report.json` |
 | `diff-directory` | Directory containing visual diff images | No | `.testivai/visual-regression/report/diff` |
 | `commit-message` | Custom commit message for approved changes | No | `chore: update visual regression baselines [skip ci]` |
+| `post-report-comment` | Whether to post a report comment to the PR | No | `true` |
 
 ## Outputs
 
@@ -190,7 +192,8 @@ permissions:
 3. It updates the approvals.json file with the appropriate entries and metadata
 4. It runs the TestivAI CLI to update baseline images for approved changes
 5. It commits and pushes the changes back to the PR branch
-6. It comments on the PR with the results
+6. It posts a summary of the visual regression report to the PR
+7. It comments on the PR with the results of the approval/rejection process
 
 ### Visual Workflow
 
@@ -218,6 +221,7 @@ sequenceDiagram
     TestivAI->>Repo: Update baseline images
     
     Action->>Repo: Commit & push changes
+    Action->>PR: Post visual regression report
     Action->>PR: Comment with results
     
     Note over Dev,Repo: Changes are now approved and baselines updated
@@ -251,6 +255,49 @@ The action updates the approvals.json file with the following structure:
     "commit_url": "https://github.com/owner/repo/commit/abc123def456"
   }
 }
+```
+
+## Report Comments
+
+When the action processes approvals or rejections, it can automatically post a comment to the PR with a summary of the visual regression report. This feature is enabled by default and can be disabled by setting the `post-report-comment` input to `false`.
+
+The report comment includes:
+
+- A summary of the test results (total tests, passed tests, failed tests)
+- A list of approved changes
+- A list of rejected changes
+- Instructions for approving or rejecting changes
+- A link to the full report
+
+Example report comment:
+
+```markdown
+## TestivAI Visual Regression Report
+
+### Summary
+
+- Total Tests: 10
+- Passed Tests: 8
+- Failed Tests: 2
+- Approved Changes: 2
+- Rejected Changes: 1
+
+### Approved Changes
+
+- ✅ login.png
+- ✅ header.png
+
+### Rejected Changes
+
+- ❌ settings.png
+
+### How to Approve/Reject Changes
+
+- To approve all changes: `/approve-visuals`
+- To approve a specific file: `/approve-visuals filename.png`
+- To reject a specific file: `/reject-visuals filename.png`
+
+[View Full Report](../blob/HEAD/.testivai/visual-regression/report/index.html)
 ```
 
 ## Troubleshooting
