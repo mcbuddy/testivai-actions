@@ -167,4 +167,194 @@ describe('TestivAI Module', () => {
       expect(result).toBe(false);
     });
   });
+  
+  describe('generateReport', () => {
+    test('should execute TestivAI CLI report command with default output path', async () => {
+      // Setup mock for exec.exec to capture stdout
+      exec.exec.mockImplementation((command, args, options) => {
+        if (options && options.listeners && options.listeners.stdout) {
+          options.listeners.stdout('Report generated successfully\n');
+        }
+        return 0;
+      });
+      
+      const result = await testivai.generateReport();
+      
+      // Check that TestivAI CLI was checked
+      expect(io.which).toHaveBeenCalledWith('testivai', true);
+      
+      // Check that TestivAI CLI was executed with correct args
+      expect(exec.exec).toHaveBeenCalledWith(
+        'testivai',
+        ['report'],
+        expect.any(Object)
+      );
+      
+      // Check that info messages were logged
+      expect(core.info).toHaveBeenCalledWith('Executing: testivai report');
+      expect(core.info).toHaveBeenCalledWith('TestivAI report command executed successfully');
+      expect(core.info).toHaveBeenCalledWith('Output: Report generated successfully\n');
+      
+      // Check result
+      expect(result).toBe(true);
+    });
+    
+    test('should execute TestivAI CLI report command with custom output path', async () => {
+      // Setup mock for exec.exec to capture stdout
+      exec.exec.mockImplementation((command, args, options) => {
+        if (options && options.listeners && options.listeners.stdout) {
+          options.listeners.stdout('Report generated successfully\n');
+        }
+        return 0;
+      });
+      
+      const customOutputPath = './custom/report/path';
+      const result = await testivai.generateReport(customOutputPath);
+      
+      // Check that TestivAI CLI was checked
+      expect(io.which).toHaveBeenCalledWith('testivai', true);
+      
+      // Check that TestivAI CLI was executed with correct args
+      expect(exec.exec).toHaveBeenCalledWith(
+        'testivai',
+        ['report', '--out', customOutputPath],
+        expect.any(Object)
+      );
+      
+      // Check that info messages were logged
+      expect(core.info).toHaveBeenCalledWith(`Executing: testivai report --out ${customOutputPath}`);
+      expect(core.info).toHaveBeenCalledWith('TestivAI report command executed successfully');
+      expect(core.info).toHaveBeenCalledWith('Output: Report generated successfully\n');
+      
+      // Check result
+      expect(result).toBe(true);
+    });
+    
+    test('should handle TestivAI CLI execution errors for report command', async () => {
+      // Mock TestivAI CLI execution failure
+      exec.exec.mockImplementation((command, args, options) => {
+        if (command === 'testivai') {
+          if (options && options.listeners && options.listeners.stderr) {
+            options.listeners.stderr('Error: Could not generate report\n');
+          }
+          return 1;
+        }
+        return 0;
+      });
+      
+      const result = await testivai.generateReport();
+      
+      // Check that error was reported
+      expect(core.setFailed).toHaveBeenCalledWith('TestivAI CLI error: TestivAI CLI exited with code 1: Error: Could not generate report\n');
+      
+      // Check result
+      expect(result).toBe(false);
+    });
+  });
+  
+  describe('takeSnapshots', () => {
+    test('should execute TestivAI CLI snapshot command', async () => {
+      // Setup mock for exec.exec to capture stdout
+      exec.exec.mockImplementation((command, args, options) => {
+        if (options && options.listeners && options.listeners.stdout) {
+          options.listeners.stdout('Snapshots taken successfully\n');
+        }
+        return 0;
+      });
+      
+      const result = await testivai.takeSnapshots();
+      
+      // Check that TestivAI CLI was checked
+      expect(io.which).toHaveBeenCalledWith('testivai', true);
+      
+      // Check that TestivAI CLI was executed with correct args
+      expect(exec.exec).toHaveBeenCalledWith(
+        'testivai',
+        ['snapshot'],
+        expect.any(Object)
+      );
+      
+      // Check that info messages were logged
+      expect(core.info).toHaveBeenCalledWith('Executing: testivai snapshot');
+      expect(core.info).toHaveBeenCalledWith('TestivAI snapshot command executed successfully');
+      expect(core.info).toHaveBeenCalledWith('Output: Snapshots taken successfully\n');
+      
+      // Check result
+      expect(result).toBe(true);
+    });
+    
+    test('should handle TestivAI CLI execution errors for snapshot command', async () => {
+      // Mock TestivAI CLI execution failure
+      exec.exec.mockImplementation((command, args, options) => {
+        if (command === 'testivai') {
+          if (options && options.listeners && options.listeners.stderr) {
+            options.listeners.stderr('Error: Could not take snapshots\n');
+          }
+          return 1;
+        }
+        return 0;
+      });
+      
+      const result = await testivai.takeSnapshots();
+      
+      // Check that error was reported
+      expect(core.setFailed).toHaveBeenCalledWith('TestivAI CLI error: TestivAI CLI exited with code 1: Error: Could not take snapshots\n');
+      
+      // Check result
+      expect(result).toBe(false);
+    });
+  });
+  
+  describe('compareSnapshots', () => {
+    test('should execute TestivAI CLI compare command', async () => {
+      // Setup mock for exec.exec to capture stdout
+      exec.exec.mockImplementation((command, args, options) => {
+        if (options && options.listeners && options.listeners.stdout) {
+          options.listeners.stdout('Snapshots compared successfully\n');
+        }
+        return 0;
+      });
+      
+      const result = await testivai.compareSnapshots();
+      
+      // Check that TestivAI CLI was checked
+      expect(io.which).toHaveBeenCalledWith('testivai', true);
+      
+      // Check that TestivAI CLI was executed with correct args
+      expect(exec.exec).toHaveBeenCalledWith(
+        'testivai',
+        ['compare'],
+        expect.any(Object)
+      );
+      
+      // Check that info messages were logged
+      expect(core.info).toHaveBeenCalledWith('Executing: testivai compare');
+      expect(core.info).toHaveBeenCalledWith('TestivAI compare command executed successfully');
+      expect(core.info).toHaveBeenCalledWith('Output: Snapshots compared successfully\n');
+      
+      // Check result
+      expect(result).toBe(true);
+    });
+    
+    test('should handle TestivAI CLI execution errors for compare command', async () => {
+      // Mock TestivAI CLI execution failure
+      exec.exec.mockImplementation((command, args, options) => {
+        if (command === 'testivai') {
+          if (options && options.listeners && options.listeners.stderr) {
+            options.listeners.stderr('Error: Could not compare snapshots\n');
+          }
+          return 1;
+        }
+        return 0;
+      });
+      
+      const result = await testivai.compareSnapshots();
+      
+      // Check that error was reported
+      expect(core.setFailed).toHaveBeenCalledWith('TestivAI CLI error: TestivAI CLI exited with code 1: Error: Could not compare snapshots\n');
+      
+      // Check result
+      expect(result).toBe(false);
+    });
+  });
 });

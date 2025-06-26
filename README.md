@@ -37,12 +37,102 @@ This GitHub Action streamlines the workflow by:
 
 ## Usage
 
-### Step 1: Add the workflow file
+### Step 1: Set Up the Workflows
 
-Create a `.github/workflows/testivai-approve.yml` file in your repository:
+You'll need two GitHub Actions workflows:
+
+1. **Deploy Workflow**: Runs TestivAI commands and deploys reports to GitHub Pages
+2. **Approval Workflow**: Processes approval comments and updates baselines
+
+#### Deploy Workflow
+
+Create a `.github/workflows/deploy-pages.yml` file:
 
 ```yaml
-name: TestivAI Visual Regression Approval
+name: Deploy TestivAI Report to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  issues: write
+  pull-requests: write
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
+      
+      - name: Run TestivAI commands for PR
+        if: github.event_name == 'pull_request'
+        run: |
+          mkdir -p ./gh-pages/pr-${{ github.event.pull_request.number }}
+          npx testivai snapshot
+          npx testivai compare
+          npx testivai report --out ./gh-pages/pr-${{ github.event.pull_request.number }}
+      
+      - name: Run TestivAI commands for main branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p ./gh-pages
+          npx testivai snapshot
+          npx testivai compare
+          npx testivai report --out ./gh-pages
+      
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: './gh-pages'
+      
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
+      
+      - name: Post PR Comment with Report Link
+        if: github.event_name == 'pull_request'
+        run: node ./scripts/post-pr-comment.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+```
+
+#### Approval Workflow
+
+Create a `.github/workflows/approve-comment.yml` file:
+
+```yaml
+name: TestivAI Approve Visuals Comment
 
 on:
   issue_comment:
@@ -51,11 +141,10 @@ on:
 jobs:
   process-approval:
     runs-on: ubuntu-latest
-    # Only run on PR comments that contain the approval commands
+    # Only run on PR comments that contain the approval command
     if: |
       github.event.issue.pull_request &&
-      (contains(github.event.comment.body, '/approve-visuals') || 
-       contains(github.event.comment.body, '/reject-visuals'))
+      contains(github.event.comment.body, '/approve-visuals')
     
     permissions:
       contents: write  # Needed to push changes back to the branch
@@ -65,48 +154,54 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.event.issue.pull_request.head.ref }}
           fetch-depth: 0
       
-      - name: Process visual approval/rejection
-        uses: testivai/visual-approval-action@v1
-        id: visual-approval
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          node-version: '16'
+      
+      - name: Get commenter info
+        id: commenter
+        run: |
+          echo "username=${{ github.event.comment.user.login }}" >> $GITHUB_OUTPUT
+          echo "email=${{ github.event.comment.user.login }}@users.noreply.github.com" >> $GITHUB_OUTPUT
+      
+      - name: Generate approvals.json
+        run: node ./scripts/create-approvals.js
+        env:
+          GITHUB_COMMENTER: ${{ steps.commenter.outputs.username }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          COMMIT_SHA: ${{ github.sha }}
+          APPROVALS_PATH: .testivai/visual-regression/approvals.json
+      
+      - name: Install TestivAI
+        run: npm install -g testivai
+      
+      - name: Run TestivAI approve
+        run: npx testivai approve --from .testivai/visual-regression/approvals.json
+      
+      - name: Configure Git
+        run: |
+          git config user.name "${{ steps.commenter.outputs.username }}"
+          git config user.email "${{ steps.commenter.outputs.email }}"
+      
+      - name: Commit and push changes
+        run: |
+          git add .
+          git diff --staged --quiet || git commit -m "chore: update visual regression baselines [skip ci]"
+          git push origin ${{ github.event.issue.pull_request.head.ref }}
       
       - name: Comment on PR with results
-        if: always()
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const result = ${{ steps.visual-approval.outputs.result }};
-            const approvedFiles = ${{ steps.visual-approval.outputs.approved-files || '[]' }};
-            const rejectedFiles = ${{ steps.visual-approval.outputs.rejected-files || '[]' }};
-            
-            let message = '';
-            
-            if (result === 'success') {
-              message = '✅ Visual regression changes processed successfully!\n\n';
-              
-              if (approvedFiles.length > 0) {
-                message += '**Approved files:**\n';
-                approvedFiles.forEach(file => {
-                  message += `- ${file}\n`;
-                });
-                message += '\n';
-              }
-              
-              if (rejectedFiles.length > 0) {
-                message += '**Rejected files:**\n';
-                rejectedFiles.forEach(file => {
-                  message += `- ${file}\n`;
-                });
-                message += '\n';
-              }
-            } else {
-              message = '❌ Failed to process visual regression changes. Please check the action logs for details.';
-            }
+            const message = '✅ Visual regression changes approved and baselines updated!\n\n' +
+                           'All visual changes have been approved and the baseline images have been updated.';
             
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -114,6 +209,166 @@ jobs:
               repo: context.repo.repo,
               body: message
             });
+```
+
+### Step 2: Create Required Scripts
+
+You'll need two helper scripts:
+
+#### PR Comment Script
+
+Create a `scripts/post-pr-comment.js` file:
+
+```javascript
+const core = require('@actions/core');
+const github = require('@actions/github');
+
+async function run() {
+  try {
+    // Get token from environment variable
+    const token = process.env.GITHUB_TOKEN;
+    if (!token) {
+      core.setFailed('GITHUB_TOKEN environment variable is required');
+      return;
+    }
+    
+    // Initialize GitHub client
+    const octokit = github.getOctokit(token);
+    
+    // Get context
+    const context = github.context;
+    const repo = context.repo;
+    
+    // Check if we're in a PR context
+    let prNumber;
+    
+    if (context.payload.pull_request) {
+      // Direct PR event
+      prNumber = context.payload.pull_request.number;
+    } else if (context.payload.issue && context.payload.issue.pull_request) {
+      // Issue comment on a PR
+      prNumber = context.payload.issue.number;
+    } else if (process.env.PR_NUMBER) {
+      // From environment variable (set in workflow)
+      prNumber = process.env.PR_NUMBER;
+    } else {
+      // Try to extract from ref (e.g., refs/pull/123/merge)
+      const prMatch = context.ref.match(/refs\/pull\/(\d+)\/merge/);
+      if (prMatch) {
+        prNumber = prMatch[1];
+      }
+    }
+    
+    if (!prNumber) {
+      core.warning('Could not determine PR number. Skipping comment posting.');
+      return;
+    }
+    
+    // Construct the GitHub Pages URL
+    const pagesUrl = `https://${repo.owner}.github.io/${repo.repo}/pr-${prNumber}/`;
+    
+    // Create comment message
+    const message = `🧪 TestivAI Report Ready — View at: [${pagesUrl}](${pagesUrl}) — Comment \`/approve-visuals\` to accept changes.`;
+    
+    // Post comment to PR
+    await octokit.rest.issues.createComment({
+      ...repo,
+      issue_number: prNumber,
+      body: message
+    });
+    
+    core.info(`Posted comment to PR #${prNumber} with report link: ${pagesUrl}`);
+    
+  } catch (error) {
+    core.setFailed(`Action failed: ${error.message}`);
+  }
+}
+
+run();
+```
+
+#### Approvals Script
+
+Create a `scripts/create-approvals.js` file:
+
+```javascript
+const fs = require('fs-extra');
+const path = require('path');
+
+/**
+ * Create an approvals.json file with the specified structure
+ * 
+ * @param {Object} options - Options for creating the approvals file
+ * @param {string} options.author - GitHub username of the commenter
+ * @param {string} options.prNumber - PR number
+ * @param {string} options.repoOwner - Repository owner
+ * @param {string} options.repoName - Repository name
+ * @param {string} options.commitSha - Commit SHA
+ * @param {string} options.outputPath - Path to write the approvals.json file
+ * @returns {Promise<string>} - Path to the created approvals file
+ */
+async function createApprovalsFile({
+  author,
+  prNumber,
+  repoOwner,
+  repoName,
+  commitSha,
+  outputPath = '.testivai/visual-regression/approvals.json'
+}) {
+  // Create the approvals data structure
+  const approvalsData = {
+    approved: ['ALL'],
+    rejected: [],
+    new: [],
+    deleted: [],
+    meta: {
+      author,
+      timestamp: new Date().toISOString(),
+      source: `GitHub PR #${prNumber}`,
+      pr_url: `https://github.com/${repoOwner}/${repoName}/pull/${prNumber}`,
+      commit_sha: commitSha,
+      commit_url: `https://github.com/${repoOwner}/${repoName}/commit/${commitSha}`
+    }
+  };
+
+  // Ensure the directory exists
+  await fs.ensureDir(path.dirname(outputPath));
+
+  // Write the approvals file
+  await fs.writeJson(outputPath, approvalsData, { spaces: 2 });
+
+  console.log(`Created approvals file at ${outputPath}`);
+  return outputPath;
+}
+
+// If this script is run directly from the command line
+if (require.main === module) {
+  const author = process.env.GITHUB_COMMENTER || process.argv[2];
+  const prNumber = process.env.PR_NUMBER || process.argv[3];
+  const repoOwner = process.env.REPO_OWNER || process.argv[4];
+  const repoName = process.env.REPO_NAME || process.argv[5];
+  const commitSha = process.env.COMMIT_SHA || process.argv[6];
+  const outputPath = process.env.APPROVALS_PATH || process.argv[7] || '.testivai/visual-regression/approvals.json';
+
+  if (!author || !prNumber || !repoOwner || !repoName || !commitSha) {
+    console.error('Missing required parameters.');
+    process.exit(1);
+  }
+
+  createApprovalsFile({
+    author,
+    prNumber,
+    repoOwner,
+    repoName,
+    commitSha,
+    outputPath
+  }).catch(error => {
+    console.error(`Error creating approvals file: ${error.message}`);
+    process.exit(1);
+  });
+}
+
+module.exports = { createApprovalsFile };
 ```
 
 ### Step 2: Use the commands in PR comments
@@ -195,37 +450,71 @@ permissions:
 6. It posts a summary of the visual regression report to the PR
 7. It comments on the PR with the results of the approval/rejection process
 
-### Visual Workflow
+### Complete Visual Workflow
 
 ```mermaid
 sequenceDiagram
     participant Dev as Developer
     participant PR as Pull Request
-    participant Action as GitHub Action
+    participant Deploy as Deploy Workflow
+    participant Pages as GitHub Pages
+    participant Approve as Approve Workflow
     participant TestivAI as TestivAI CLI
     participant Repo as Repository
 
     Note over Dev,Repo: Visual Regression Testing Workflow
     
     Dev->>PR: Create PR with UI changes
-    PR->>TestivAI: Trigger visual regression tests
-    TestivAI-->>PR: Report visual differences
+    PR->>Deploy: Trigger deploy workflow
+    
+    Deploy->>TestivAI: Run "testivai snapshot"
+    TestivAI-->>Deploy: Generate snapshots
+    
+    Deploy->>TestivAI: Run "testivai compare"
+    TestivAI-->>Deploy: Compare with baselines
+    
+    Deploy->>TestivAI: Run "testivai report --out ./gh-pages/pr-X"
+    TestivAI-->>Deploy: Generate PR-specific report
+    
+    Deploy->>Pages: Upload and deploy to GitHub Pages
+    Deploy->>PR: Post comment with report link
     
     Note over Dev,PR: Approval Process
-    Dev->>PR: Comment: "/approve-visuals" or<br>"/approve-visuals filename.png"
-    PR->>Action: Trigger workflow
+    Dev->>PR: Review report at GitHub Pages URL
+    Dev->>PR: Comment: "/approve-visuals"
+    PR->>Approve: Trigger approval workflow
     
-    Action->>Action: Parse comment
-    Action->>Action: Update approvals.json
-    Action->>TestivAI: Execute "testivai approve"
+    Approve->>Approve: Generate approvals.json
+    Approve->>TestivAI: Execute "testivai approve"
     TestivAI->>Repo: Update baseline images
     
-    Action->>Repo: Commit & push changes
-    Action->>PR: Post visual regression report
-    Action->>PR: Comment with results
+    Approve->>Repo: Commit & push changes as commenter
+    Approve->>PR: Comment with approval results
     
     Note over Dev,Repo: Changes are now approved and baselines updated
 ```
+
+### Using `/approve-visuals` in PR Comments
+
+The approval workflow is designed to be simple and intuitive:
+
+1. **View the Report**: When a PR is created or updated, the deploy workflow automatically runs TestivAI commands and deploys a report to GitHub Pages. A comment is posted on the PR with a link to the report.
+
+2. **Review Visual Changes**: Click the link in the PR comment to view the visual regression report. This shows you all the visual differences between the current PR and the baseline.
+
+3. **Approve Changes**: If the visual changes are intentional and correct, simply add a comment to the PR with:
+   ```
+   /approve-visuals
+   ```
+
+4. **Automatic Processing**: The approval workflow will:
+   - Generate an approvals.json file with "approved": ["ALL"]
+   - Run TestivAI approve to update baseline images
+   - Commit and push the changes back to the PR branch
+   - The commit will be attributed to you (using your GitHub username)
+   - A confirmation comment will be posted on the PR
+
+5. **Verification**: The updated baseline images will be included in the PR, and subsequent visual regression tests will use these new baselines.
 
 ### Approvals.json Format
 

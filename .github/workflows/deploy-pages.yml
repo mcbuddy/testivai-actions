@@ -1,0 +1,76 @@
+name: Deploy TestivAI Report to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  issues: write
+  pull-requests: write
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
+      
+      - name: Run TestivAI commands for PR
+        if: github.event_name == 'pull_request'
+        run: |
+          mkdir -p ./gh-pages/pr-${{ github.event.pull_request.number }}
+          npx testivai snapshot
+          npx testivai compare
+          npx testivai report --out ./gh-pages/pr-${{ github.event.pull_request.number }}
+      
+      - name: Run TestivAI commands for main branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p ./gh-pages
+          npx testivai snapshot
+          npx testivai compare
+          npx testivai report --out ./gh-pages
+      
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: './gh-pages'
+      
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
+      
+      - name: Post PR Comment with Report Link
+        if: github.event_name == 'pull_request'
+        run: node ./scripts/post-pr-comment.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}

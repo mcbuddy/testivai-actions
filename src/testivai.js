@@ -92,6 +92,169 @@ async function installTestivAICLI() {
   }
 }
 
+/**
+ * Execute TestivAI CLI to generate a report
+ * 
+ * @param {string} outputPath - Optional custom output path for the report
+ * @returns {boolean} - Success status
+ */
+async function generateReport(outputPath) {
+  try {
+    // Check if TestivAI CLI is installed
+    try {
+      await io.which('testivai', true);
+    } catch (error) {
+      core.info('TestivAI CLI not found, attempting to install...');
+      await installTestivAICLI();
+    }
+    
+    // Prepare command arguments
+    const args = ['report'];
+    if (outputPath) {
+      args.push('--out', outputPath);
+    }
+    
+    // Execute TestivAI report command
+    core.info(`Executing: testivai ${args.join(' ')}`);
+    
+    let stdoutData = '';
+    let stderrData = '';
+    
+    const options = {
+      listeners: {
+        stdout: (data) => {
+          stdoutData += data.toString();
+        },
+        stderr: (data) => {
+          stderrData += data.toString();
+        }
+      }
+    };
+    
+    const exitCode = await exec.exec('testivai', args, options);
+    
+    if (exitCode !== 0) {
+      throw new Error(`TestivAI CLI exited with code ${exitCode}: ${stderrData}`);
+    }
+    
+    core.info('TestivAI report command executed successfully');
+    if (stdoutData) {
+      core.info(`Output: ${stdoutData}`);
+    }
+    
+    return true;
+  } catch (error) {
+    const errorMessage = `TestivAI CLI error: ${error.message}`;
+    core.setFailed(errorMessage);
+    return false;
+  }
+}
+
+/**
+ * Execute TestivAI CLI to take snapshots
+ * 
+ * @returns {boolean} - Success status
+ */
+async function takeSnapshots() {
+  try {
+    // Check if TestivAI CLI is installed
+    try {
+      await io.which('testivai', true);
+    } catch (error) {
+      core.info('TestivAI CLI not found, attempting to install...');
+      await installTestivAICLI();
+    }
+    
+    // Execute TestivAI snapshot command
+    core.info('Executing: testivai snapshot');
+    
+    let stdoutData = '';
+    let stderrData = '';
+    
+    const options = {
+      listeners: {
+        stdout: (data) => {
+          stdoutData += data.toString();
+        },
+        stderr: (data) => {
+          stderrData += data.toString();
+        }
+      }
+    };
+    
+    const exitCode = await exec.exec('testivai', ['snapshot'], options);
+    
+    if (exitCode !== 0) {
+      throw new Error(`TestivAI CLI exited with code ${exitCode}: ${stderrData}`);
+    }
+    
+    core.info('TestivAI snapshot command executed successfully');
+    if (stdoutData) {
+      core.info(`Output: ${stdoutData}`);
+    }
+    
+    return true;
+  } catch (error) {
+    const errorMessage = `TestivAI CLI error: ${error.message}`;
+    core.setFailed(errorMessage);
+    return false;
+  }
+}
+
+/**
+ * Execute TestivAI CLI to compare snapshots
+ * 
+ * @returns {boolean} - Success status
+ */
+async function compareSnapshots() {
+  try {
+    // Check if TestivAI CLI is installed
+    try {
+      await io.which('testivai', true);
+    } catch (error) {
+      core.info('TestivAI CLI not found, attempting to install...');
+      await installTestivAICLI();
+    }
+    
+    // Execute TestivAI compare command
+    core.info('Executing: testivai compare');
+    
+    let stdoutData = '';
+    let stderrData = '';
+    
+    const options = {
+      listeners: {
+        stdout: (data) => {
+          stdoutData += data.toString();
+        },
+        stderr: (data) => {
+          stderrData += data.toString();
+        }
+      }
+    };
+    
+    const exitCode = await exec.exec('testivai', ['compare'], options);
+    
+    if (exitCode !== 0) {
+      throw new Error(`TestivAI CLI exited with code ${exitCode}: ${stderrData}`);
+    }
+    
+    core.info('TestivAI compare command executed successfully');
+    if (stdoutData) {
+      core.info(`Output: ${stdoutData}`);
+    }
+    
+    return true;
+  } catch (error) {
+    const errorMessage = `TestivAI CLI error: ${error.message}`;
+    core.setFailed(errorMessage);
+    return false;
+  }
+}
+
 module.exports = {
-  approveVisuals
+  approveVisuals,
+  generateReport,
+  takeSnapshots,
+  compareSnapshots
 };
