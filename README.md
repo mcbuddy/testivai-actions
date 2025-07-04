@@ -34,6 +34,50 @@ This GitHub Action streamlines the workflow by:
 - Detailed metadata tracking for audit purposes
 - Seamless integration with TestivAI's visual regression testing
 - Automatic posting of visual regression reports to PR comments
+- GitHub Pages integration for hosting comprehensive visual regression reports
+
+## GitHub Pages Integration
+
+This action leverages GitHub Pages to host detailed visual regression reports, providing several key benefits:
+
+### How It Works
+
+1. When a PR is created or updated, the deploy workflow automatically:
+   - Runs TestivAI commands (snapshot, compare, report)
+   - Generates a PR-specific report with the `--out` flag
+   - Deploys the report to GitHub Pages
+   - Posts a comment on the PR with a link to the report
+
+2. Each PR gets its own dedicated report URL following this pattern:
+   ```
+   https://{owner}.github.io/{repo}/pr-{pr-number}/
+   ```
+
+3. When viewing the report, developers can see:
+   - All visual differences between the current PR and the baseline
+   - Before and after screenshots for each component
+   - Detailed information about each change
+   - Options to approve or reject changes
+
+### Benefits of GitHub Pages Integration
+
+- **Native GitHub Integration**: No external services required
+- **Free Hosting**: Unlimited report hosting at no additional cost
+- **PR-Specific Reports**: Each PR gets its own dedicated report URL
+- **Persistent Reports**: Reports remain accessible throughout the PR lifecycle
+- **Seamless Workflow**: Direct links from PR comments to visual reports
+- **Secure Access Control**: Reports inherit GitHub's access controls
+
+### Setting Up GitHub Pages
+
+To enable GitHub Pages for your repository:
+
+1. Go to your repository settings
+2. Navigate to the "Pages" section
+3. Select the branch to deploy from (usually `gh-pages`)
+4. Save your settings
+
+The deploy workflow will automatically create and update the necessary files for GitHub Pages deployment.
 
 ## Usage
 
@@ -442,7 +486,17 @@ permissions:
 
 ## How It Works
 
-1. When a PR comment is created with one of the approval/rejection commands, the workflow is triggered
+### Report Generation and Deployment
+
+1. When a PR is created or updated, the deploy workflow is triggered
+2. The workflow runs TestivAI commands to generate snapshots and comparisons
+3. It creates a PR-specific report using the `--out` flag to a dedicated directory
+4. The report is deployed to GitHub Pages with a unique PR-specific URL
+5. A comment is posted on the PR with a link to the GitHub Pages report
+
+### Approval Process
+
+1. When a PR comment is created with one of the approval/rejection commands, the approval workflow is triggered
 2. The action parses the comment to determine the intent (approve all, approve specific, reject specific)
 3. It updates the approvals.json file with the appropriate entries and metadata
 4. It runs the TestivAI CLI to update baseline images for approved changes
@@ -633,6 +687,50 @@ If you approve changes but nothing happens:
 2. The diff files exist in the expected location
 3. The PR comment format is correct
 
+### GitHub Pages Issues
+
+#### Report Not Deployed
+
+If the GitHub Pages report is not deployed:
+
+```
+Error: Failed to deploy GitHub Pages site
+```
+
+**Solution**: Ensure your workflow has the correct permissions and environment:
+
+```yaml
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+```
+
+#### PR-Specific Reports Not Working
+
+If PR-specific reports are not being generated:
+
+**Solution**: Verify that:
+1. The `--out` flag is being used correctly with the PR number
+2. The directory structure is correct (`./gh-pages/pr-{PR_NUMBER}/`)
+3. The upload artifact step is pointing to the correct directory
+
+#### Report URL Not Working
+
+If the report URL in the PR comment doesn't work:
+
+**Solution**: Check that:
+1. GitHub Pages is enabled for your repository
+2. The deployment was successful (check action logs)
+3. The URL format is correct: `https://{owner}.github.io/{repo}/pr-{pr-number}/`
+4. Sufficient time has passed for the deployment to complete (usually a few minutes)
+
 ### Getting Help
 
 If you encounter issues not covered here:
@@ -645,6 +743,12 @@ If you encounter issues not covered here:
 
 - TestivAI must be set up in your project
 - The workflow must have write permissions to the repository
+- GitHub Pages must be enabled for your repository
+- The following GitHub Actions permissions are required:
+  - `contents: write` (for pushing changes)
+  - `pull-requests: write` (for commenting on PRs)
+  - `pages: write` (for deploying to GitHub Pages)
+  - `id-token: write` (for GitHub Pages authentication)
 
 ## Contributing
 
