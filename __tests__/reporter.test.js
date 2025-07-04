@@ -1,11 +1,8 @@
 const reporter = require('../src/reporter');
-const fs = require('fs-extra');
-const path = require('path');
 
 // Mock dependencies
 jest.mock('@actions/core');
 jest.mock('@actions/github');
-jest.mock('fs-extra');
 
 describe('Reporter Module', () => {
   beforeEach(() => {
@@ -14,7 +11,7 @@ describe('Reporter Module', () => {
   });
 
   describe('postReportComment', () => {
-    it('should post a report comment to the PR', async () => {
+    it('should post a report comment with GitHub Pages link to the PR', async () => {
       // Mock GitHub context
       const context = {
         repo: {
@@ -37,24 +34,8 @@ describe('Reporter Module', () => {
         }
       };
 
-      // Mock report path
+      // Mock report path (not used in the updated implementation)
       const reportPath = '.testivai/visual-regression/report/report.json';
-      const reportHtmlPath = '.testivai/visual-regression/report/index.html';
-
-      // Mock fs.pathExists
-      fs.pathExists.mockResolvedValue(true);
-
-      // Mock fs.readFile
-      const mockHtmlContent = `
-        <html>
-          <body>
-            <div>Total Tests: 10</div>
-            <div>Passed Tests: 8</div>
-            <div>Failed Tests: 2</div>
-          </body>
-        </html>
-      `;
-      fs.readFile.mockResolvedValue(mockHtmlContent);
 
       // Mock result
       const result = {
@@ -67,58 +48,18 @@ describe('Reporter Module', () => {
 
       // Assertions
       expect(success).toBe(true);
-      expect(fs.pathExists).toHaveBeenCalledWith(path.join(path.dirname(reportPath), 'index.html'));
-      expect(fs.readFile).toHaveBeenCalledWith(path.join(path.dirname(reportPath), 'index.html'), 'utf8');
       expect(octokit.rest.issues.createComment).toHaveBeenCalledWith({
         owner: 'testivai',
         repo: 'testivai-visual-regression',
         issue_number: 42,
         body: expect.stringContaining('TestivAI Visual Regression Report')
       });
-    });
-
-    it('should handle missing report HTML', async () => {
-      // Mock GitHub context
-      const context = {
-        repo: {
-          owner: 'testivai',
-          repo: 'testivai-visual-regression'
-        },
-        payload: {
-          issue: {
-            number: 42
-          }
-        }
-      };
-
-      // Mock Octokit
-      const octokit = {
-        rest: {
-          issues: {
-            createComment: jest.fn()
-          }
-        }
-      };
-
-      // Mock report path
-      const reportPath = '.testivai/visual-regression/report/report.json';
-
-      // Mock fs.pathExists to return false (file not found)
-      fs.pathExists.mockResolvedValue(false);
-
-      // Mock result
-      const result = {
-        approvedFiles: ['image1.png'],
-        rejectedFiles: []
-      };
-
-      // Call the function
-      const success = await reporter.postReportComment(octokit, context, reportPath, result);
-
-      // Assertions
-      expect(success).toBe(false);
-      expect(fs.pathExists).toHaveBeenCalledWith(path.join(path.dirname(reportPath), 'index.html'));
-      expect(octokit.rest.issues.createComment).not.toHaveBeenCalled();
+      expect(octokit.rest.issues.createComment).toHaveBeenCalledWith({
+        owner: 'testivai',
+        repo: 'testivai-visual-regression',
+        issue_number: 42,
+        body: expect.stringContaining('https://testivai.github.io/testivai-visual-regression/pr-42/')
+      });
     });
 
     it('should handle non-PR context', async () => {
