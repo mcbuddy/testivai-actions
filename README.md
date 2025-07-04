@@ -689,6 +689,101 @@ If you approve changes but nothing happens:
 
 ### GitHub Pages Issues
 
+#### No PR Comments or GitHub Pages Reports
+
+If you don't see any PR comments with report links or GitHub Pages reports:
+
+**Solution**: Run the diagnostic scripts to identify the issue:
+
+```yaml
+- name: Run GitHub Pages Diagnostics
+  run: node ./scripts/diagnose-github-pages.js
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    PR_NUMBER: ${{ github.event.pull_request.number }}
+
+- name: Run TestivAI Artifact Diagnostics
+  run: |
+    npm install glob
+    node ./scripts/diagnose-testivai-artifacts.js
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    PR_NUMBER: ${{ github.event.pull_request.number }}
+```
+
+Common issues and solutions:
+
+1. **GitHub Pages Not Enabled**:
+   - Go to your repository settings
+   - Navigate to "Pages" section
+   - Select a branch for GitHub Pages (usually `gh-pages`)
+   - Save your settings
+
+2. **TestivAI CLI Issues**:
+   - Ensure TestivAI is installed: `npm install -g testivai`
+   - Check if TestivAI commands are failing in the workflow logs
+   - Verify your TestivAI configuration is correct
+
+3. **Workflow Permission Issues**:
+   - Ensure your workflow has the correct permissions:
+   ```yaml
+   permissions:
+     contents: read
+     pages: write
+     id-token: write
+     issues: write
+     pull-requests: write
+   ```
+
+4. **PR Context Issues**:
+   - Make sure the workflow is running in a PR context
+   - Check if the PR number is being correctly detected
+
+#### TestivAI Artifact Upload Errors
+
+If you see errors during the upload of TestivAI visual artifacts:
+
+```
+Error: Error: Input required and not supplied: path
+```
+
+or
+
+```
+Error: No such file or directory: ./gh-pages
+```
+
+**Solution**:
+1. **Check Directory Structure**:
+   - Ensure the TestivAI report command is creating output in the correct location
+   - Verify the directory structure with the diagnostic script:
+     ```bash
+     node ./scripts/diagnose-testivai-artifacts.js
+     ```
+
+2. **Fix Common Issues**:
+   - Make sure the directory is created before running TestivAI commands:
+     ```yaml
+     - run: |
+         mkdir -p ./gh-pages/pr-${{ github.event.pull_request.number }}
+         npx testivai snapshot
+         npx testivai compare
+         npx testivai report --out ./gh-pages/pr-${{ github.event.pull_request.number }}
+     ```
+   - Check for large files that might cause upload issues
+   - Verify TestivAI configuration is correct
+
+3. **Debugging Steps**:
+   - Run TestivAI commands with verbose logging:
+     ```bash
+     npx testivai report --out ./gh-pages/pr-123 --verbose
+     ```
+   - Check the contents of the output directory:
+     ```bash
+     ls -la ./gh-pages/pr-123
+     ```
+   - Verify the upload artifact step is pointing to the correct path
+
 #### Report Not Deployed
 
 If the GitHub Pages report is not deployed:
@@ -697,20 +792,15 @@ If the GitHub Pages report is not deployed:
 Error: Failed to deploy GitHub Pages site
 ```
 
-**Solution**: Ensure your workflow has the correct permissions and environment:
-
-```yaml
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-jobs:
-  build-and-deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-```
+**Solution**: 
+1. Check that GitHub Pages is enabled in your repository settings
+2. Verify the workflow has the correct permissions
+3. Look for errors in the "Deploy to GitHub Pages" step in the workflow logs
+4. Make sure the `gh-pages` directory is being created and contains the report files
+5. Run the TestivAI artifact diagnostic script to check for issues:
+   ```bash
+   node ./scripts/diagnose-testivai-artifacts.js
+   ```
 
 #### PR-Specific Reports Not Working
 
@@ -720,6 +810,7 @@ If PR-specific reports are not being generated:
 1. The `--out` flag is being used correctly with the PR number
 2. The directory structure is correct (`./gh-pages/pr-{PR_NUMBER}/`)
 3. The upload artifact step is pointing to the correct directory
+4. The TestivAI commands are completing successfully
 
 #### Report URL Not Working
 
@@ -730,6 +821,7 @@ If the report URL in the PR comment doesn't work:
 2. The deployment was successful (check action logs)
 3. The URL format is correct: `https://{owner}.github.io/{repo}/pr-{pr-number}/`
 4. Sufficient time has passed for the deployment to complete (usually a few minutes)
+5. The repository name in the URL matches your actual repository name (case-sensitive)
 
 ### Getting Help
 

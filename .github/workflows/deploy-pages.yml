@@ -23,9 +23,6 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     
     steps:
       - name: Checkout repository
@@ -71,6 +68,22 @@ jobs:
       - name: Post PR Comment with Report Link
         if: github.event_name == 'pull_request'
         run: node ./scripts/post-pr-comment.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+      
+      - name: Run GitHub Pages Diagnostics (if deployment fails)
+        if: github.event_name == 'pull_request' && failure()
+        run: node ./scripts/diagnose-github-pages.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+      
+      - name: Run TestivAI Artifact Diagnostics (if artifact upload fails)
+        if: github.event_name == 'pull_request' && failure()
+        run: |
+          npm install glob
+          node ./scripts/diagnose-testivai-artifacts.js
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
